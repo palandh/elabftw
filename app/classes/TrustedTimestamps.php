@@ -435,7 +435,8 @@ class TrustedTimestamps extends Entity
      */
     private function isJavaInstalled()
     {
-        $res = $this->runSh("java");
+        #added workaround because Java was could not be found by the following command. 
+        $res = $this->runSh("/opt/jdk/bin/java");
         if (stripos($res['retarray'][0], 'class')) {
             return true;
         }
