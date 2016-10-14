@@ -420,7 +420,7 @@ class TrustedTimestamps extends Entity
             if (stripos($retline, "TS_CHECK_SIGNING_CERTS")) {
                 // we are facing the OpenSSL bug discussed here:
                 // https://github.com/elabftw/elabftw/issues/242#issuecomment-212382182
-                return $this->validateWithJava();
+                return $this->validateWithJavaARMfix();
             }
         }
 
@@ -443,6 +443,48 @@ class TrustedTimestamps extends Entity
         return false;
     }
 
+    /** ARM Fix for Java Problems
+     * Run a shell command
+     *
+     * @param string $cmd
+     * @return array<string,null|array|integer>
+     */
+    private function runShARMfix($requestfilePath, $responsefilePath)
+    {
+        $retarray = array();
+        execstring = "/opt/jdk/bin/java -cp libs/bcpkix-jdk15on-152.jar:libs/bcprov-jdk15on-152.jar:. de.dfncert.timestampverifier.TimeStampVerifier " . $requestfilePath . " " . $responsefilePath . " chain.txt rootcert.crt crl.txt 2>&1";
+        exec(execstring, $retarray, $retcode)); 
+
+        return array(
+            "retarray" => $retarray,
+            "retcode" => $retcode
+        );
+    }
+    
+    /**
+     * Validate the timestamp with java and BouncyCastle lib
+     * We need this because of the openssl bug
+     *
+     * @throws Exception
+     * @return bool
+     */
+    private function validateWithJavaARMfix()
+    {
+        /* deactivated for testing
+        *if (!$this->isJavaInstalled()) {
+        *    throw new Exception("Could not validate the timestamp due to a bug in OpenSSL library. See <a href='https://github.com/elabftw/elabftw/issues/242#issuecomment-212382182'>issue #242</a>. Tried to validate with failsafe method but Java is not installed.");
+        *}
+        */
+        
+        chdir("../vendor/dfn-cert/timestampverifier/");
+        $requestfilePath = $this->requestfilePath;
+        $responsefilePath = $this->responsefilePath;
+        $javaRes = $this->runShARMfix($requestfilePath, $responsefilePath);
+        if (stripos($javaRes['retarray'][0], 'matches')) {
+            return true;
+        }
+        throw new Exception('Could not validate the timestamp with java failsafe method. Please report this bug on Github.');
+    }
     /**
      * Validate the timestamp with java and BouncyCastle lib
      * We need this because of the openssl bug
@@ -460,7 +502,7 @@ class TrustedTimestamps extends Entity
         
         chdir("../vendor/dfn-cert/timestampverifier/");
         $cmd = "./verify.sh " . $this->requestfilePath . " " . $this->responsefilePath;
-        $javaRes = $this->runSh($cmd);
+        $javaRes = $this->runShARMfix($cmd);
         if (stripos($javaRes['retarray'][0], 'matches')) {
             return true;
         }
